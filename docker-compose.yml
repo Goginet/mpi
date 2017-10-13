@@ -1,0 +1,43 @@
+# Author: Georgy Shapchits <gogi.soft.gm@gmail.com>
+
+version: "3.3"
+
+services:
+  master:
+    image: goginet/openmpi
+    ports: 
+      - "22"
+    networks:
+      net:
+        ipv4_address: 10.5.0.100
+    extra_hosts:
+      - "master:10.5.0.100"
+      - "slave_1:10.5.0.101"
+      - "slave_2:10.5.0.102"
+
+  slave_1:
+    image: goginet/openmpi
+    networks:
+      net:
+        ipv4_address: 10.5.0.101
+    extra_hosts:
+      - "master:10.5.0.100"
+      - "slave_1:10.5.0.101"
+      - "slave_2:10.5.0.102"
+
+  slave_2:
+    image: goginet/openmpi
+    networks:
+      net:
+        ipv4_address: 10.5.0.102
+    extra_hosts:
+      - "master:10.5.0.100"
+      - "slave_1:10.5.0.101"
+      - "slave_2:10.5.0.102"
+
+networks:
+  net:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 10.5.0.0/16
