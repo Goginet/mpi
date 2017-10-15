@@ -2,27 +2,26 @@ FROM ubuntu:16.04
 
 MAINTAINER Georgy Shapchits <gogi.soft.gm@gmail.com>
 
-ENV USER mpi
-ENV HOME=/home/${USER}
-ENV SSHDIR ${HOME}/.ssh/
+ENV HOME /root
 ENV SRC_FILE ${HOME}/src/main.c
 ENV BIN_FILE ${HOME}/bin/a.out
 
+WORKDIR ${HOME}
+
+ADD configs configs
+ADD src src
+ADD ssh .ssh
 ADD scripts scripts
-ADD configs ${HOME}/configs
-ADD src ${HOME}/src
-ADD ssh ${SSHDIR}
+ADD data data
 
 RUN apt update -y && \
     apt install -y apt-utils vim iputils-ping openssh-server build-essential mpich && \
     mkdir /var/run/sshd && \
-    echo 'root:${USER}' | chpasswd && \
-    adduser --disabled-password --gecos "" ${USER} && \
-    mkdir -p ${SSHDIR} && \
+    mkdir -p .ssh && \
     mkdir -p $(dirname ${BIN_FILE}}) && \
-    chmod -R 600 ${SSHDIR}* && \
-    chown -R ${USER}:${USER} ${SSHDIR} && \
+    chmod -R 600 .ssh/* && \
     mpicc ${SRC_FILE} -o ${BIN_FILE} && \
-    chmod +x scripts/*
+    chmod +x scripts/* && \
+    cp scripts/run.sh /usr/bin/run
 
 CMD ["/usr/sbin/sshd", "-D"]
