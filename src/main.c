@@ -223,6 +223,8 @@ int master(int process_count, int *rows_result)
     free_matrix(matrix_a, rows, columns);
     free_matrix(matrix_b, rows, columns);
 
+    printf("End initialization!\n");
+
     return 0;
 }
 
@@ -399,6 +401,9 @@ int merge(int rank, int **result_worker, int rows, int count)
             }
         }
 
+        printf("Complite!!!\n");
+
+        printf("Write to file!!!\n");
         // Write result mastrix into file
         code = write_matrix(result_matrix, RESULT_MATRIX_PATH, rows, rows);
         free_matrix(result_matrix, rows, rows);
