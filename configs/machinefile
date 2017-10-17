@@ -1,3 +1,3 @@
-slave_1:4
-slave_2:2
-master
+slave_1:1
+slave_2:1
+master:1
