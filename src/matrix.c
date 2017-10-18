@@ -200,3 +200,33 @@ int load_data(int ***matrix_a, int ***matrix_b, int *size)
 
     return 0;
 }
+
+int generate_data(int ***matrix_a, int ***matrix_b, int size)
+{
+    int code = 0;
+
+    code = create_matrix(matrix_a, size, size);
+    if (code != 0)
+    {
+        printf("Can not allocate memory!\n");
+        return code;
+    }
+
+    code = create_matrix(matrix_b, size, size);
+    if (code != 0)
+    {
+        printf("Can not allocate memory!\n");
+        return code;
+    }
+
+    for (int i = 0; i < size; i++)
+    {
+        for (int j = 0; j < size; j++)
+        {
+            (*matrix_a)[i][j] = 1;
+            (*matrix_b)[i][j] = 1;
+        }
+    }
+
+    return 0;
+}
