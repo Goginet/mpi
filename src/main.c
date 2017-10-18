@@ -6,157 +6,51 @@
 #include <syslog.h>
 #include <unistd.h>
 #include "mpi.h"
+#include "matrix.c"
 
-#define ERROR_OPEN_FILE 1
-#define ERROR_ALLOCATE_MEMORY 2
-
-#define ROWS 100
-#define COLUMNS 100
 #define MATRIX_A_PATH "data/A.csv"
 #define MATRIX_B_PATH "data/B.csv"
 #define RESULT_MATRIX_PATH "data/C.csv"
 
-MPI_Comm prime_comm;
-
-void free_matrix(int **matrix, int rows, int columns)
+// Get message from process
+int get_message(int source, int tag, int *buf, int len)
 {
-    if (matrix == NULL)
-    {
-        return;
-    }
+    int code;
+    MPI_Status status;
 
-    for (size_t i = 0; i < rows; i++)
-    {
-        if (matrix[i] == NULL)
-        {
-            break;
-        }
-        free(matrix[i]);
-    }
-    free(matrix);
-}
-
-int create_matrix(int ***matrix, int rows, int columns)
-{
-    *matrix = (int **)malloc(rows * sizeof(int *));
-    if (*matrix == NULL)
-    {
-        return ERROR_ALLOCATE_MEMORY;
-    }
-
-    for (int i = 0; i < rows; i++)
-    {
-        (*matrix)[i] = (int *)malloc(columns * sizeof(int));
-        if ((*matrix)[i] == NULL)
-        {
-            free_matrix(*matrix, rows, columns);
-            return ERROR_ALLOCATE_MEMORY;
-        }
-    }
-
-    return 0;
-}
-
-int create_arr(int **arr, int size)
-{
-    *arr = (int *)malloc(size * sizeof(int));
-    if (*arr == NULL)
-    {
-        return ERROR_ALLOCATE_MEMORY;
-    }
-
-    return 0;
-}
-
-int read_matrix(int ***matrix, char *fname, int rows, int columns)
-{
-    FILE *file;
-    int temp, code;
-
-    // Alocate memory for matrix
-    // TODO: Check errors
-    code = create_matrix(matrix, rows, columns);
-    if (code != 0)
+    code = MPI_Recv(buf, len, MPI_INT, source, tag, MPI_COMM_WORLD, &status);
+    if (code != MPI_SUCCESS)
     {
         return code;
     }
 
-    // Read matrix from file
-    file = fopen(fname, "r");
-    if (file == NULL)
-    {
-        return ERROR_OPEN_FILE;
-    }
-
-    for (int i = 0; i < rows; i++)
-    {
-        for (int j = 0; j < columns; j++)
-        {
-            fscanf(file, "%i", &temp);
-            (*matrix)[i][j] = temp;
-        }
-    }
-
-    fclose(file);
-
     return 0;
 }
 
-int write_matrix(int **matrix, char *fname, int rows, int columns)
+// Scalar multiply row * column
+int scalar_multiply(int *row, int *column, int size)
 {
-    FILE *file;
-
-    // Open file
-    file = fopen(fname, "w");
-    if (file == NULL)
+    int sum = 0;
+    for (int i = 0; i < size; i++)
     {
-        return ERROR_OPEN_FILE;
+        sum += row[i] * column[i];
     }
 
-    // Write to file
-    for (int i = 0; i < rows; i++)
-    {
-        for (int j = 0; j < columns; j++)
-        {
-            fprintf(file, "%d ", matrix[i][j]);
-        }
-        fprintf(file, "\n");
-    }
-
-    fclose(file);
+    return sum;
 }
 
-int matrix_size(char *fname, int *rows, int *columns)
+// It's a magic function)
+int get_offset(int count, int iterate, int rank)
 {
-    FILE *file;
-    char *line = NULL;
-    size_t len;
-    int columns_counter = 0, rows_counter = 0;
+    rank--;
+    int offset = rank - iterate;
 
-    file = fopen(fname, "r");
-    if (file == NULL)
+    if (offset < 0)
     {
-        printf("Error open file: %s\n", fname);
-        return ERROR_OPEN_FILE;
+        offset = count + rank - iterate;
     }
 
-    while (getline(&line, &len, file) != -1)
-    {
-        columns_counter = 1;
-        for (int i = 0; i < len; i++)
-        {
-            if (line[i] == ' ')
-            {
-                columns_counter++;
-            }
-        }
-        rows_counter++;
-    }
-
-    *rows = rows_counter;
-    *columns = columns_counter;
-
-    return 0;
+    return offset;
 }
 
 // Read to matrix and send rows and columns to workers
@@ -226,44 +120,6 @@ int master(int process_count, int *rows_result)
     printf("End initialization!\n");
 
     return 0;
-}
-
-int get_message(int source, int tag, int *buf, int len)
-{
-    int code;
-    MPI_Status status;
-
-    code = MPI_Recv(buf, len, MPI_INT, source, tag, MPI_COMM_WORLD, &status);
-    if (code != MPI_SUCCESS)
-    {
-        return code;
-    }
-
-    return 0;
-}
-
-int scalar_multiply(int *row, int *column, int size)
-{
-    int sum = 0;
-    for (int i = 0; i < size; i++)
-    {
-        sum += row[i] * column[i];
-    }
-
-    return sum;
-}
-
-int get_offset(int count, int iterate, int rank)
-{
-    rank--;
-    int offset = rank - iterate;
-
-    if (offset < 0)
-    {
-        offset = count + rank - iterate;
-    }
-
-    return offset;
 }
 
 // Calculate part of matrix
@@ -402,8 +258,8 @@ int merge(int rank, int **result_worker, int rows, int count)
         }
 
         printf("Complite!!!\n");
-
         printf("Write to file!!!\n");
+
         // Write result mastrix into file
         code = write_matrix(result_matrix, RESULT_MATRIX_PATH, rows, rows);
         free_matrix(result_matrix, rows, rows);
