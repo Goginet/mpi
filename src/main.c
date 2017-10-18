@@ -8,9 +8,7 @@
 #include "mpi.h"
 #include "matrix.c"
 
-#define MATRIX_A_PATH "data/A.csv"
-#define MATRIX_B_PATH "data/B.csv"
-#define RESULT_MATRIX_PATH "data/C.csv"
+double t1, t2;
 
 // Get message from process
 int get_message(int source, int tag, int *buf, int len)
@@ -54,83 +52,51 @@ int get_offset(int count, int iterate, int rank)
 }
 
 // Read to matrix and send rows and columns to workers
-int master(int process_count, int *rows_result)
+int master(int **matrix_a, int **matrix_b, int process_count, int size)
 {
-    int **matrix_a;
-    int **matrix_b;
-    int **matrix_c;
     int *recv_buffer;
-    int rows, columns, code;
-
-    // Get matrix A size from file
-    code = matrix_size(MATRIX_A_PATH, &rows, &columns);
-    if (code != 0)
-    {
-        return code;
-    }
-
-    *rows_result = rows;
-
-    // Read matrix A from file
-    code = read_matrix(&matrix_a, MATRIX_A_PATH, rows, columns);
-    if (code != 0)
-    {
-        return code;
-    }
-
-    // Read matrix B from file
-    code = read_matrix(&matrix_b, MATRIX_B_PATH, rows, columns);
-    if (code != 0)
-    {
-        free_matrix(matrix_a, rows, columns);
-        return code;
-    }
+    int code;
 
     // Send matrix size to workers
     for (int j = 0; j < process_count; j++)
     {
-        MPI_Send(&rows, 1, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
+        MPI_Send(&size, 1, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
     }
 
     // Send rows and columns to workers
-    for (int i = 0; i < (int)(rows / process_count); i++)
+    for (int i = 0; i < (int)(size / process_count); i++)
     {
         for (int j = 0; j < process_count; j++)
         {
-            int index = i + j * (rows / process_count);
-            int *column = (int *)malloc(columns * sizeof(int));
+            int index = i + j * (size / process_count);
+            int *column = (int *)malloc(size * sizeof(int));
 
-            for (int k = 0; k < rows; k++)
+            for (int k = 0; k < size; k++)
             {
                 column[k] = matrix_b[k][index];
             }
 
             // Send row to worker
-            MPI_Send(matrix_a[index], columns, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
+            MPI_Send(matrix_a[index], size, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
             // Send columm to worker
-            MPI_Send(column, rows, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
+            MPI_Send(column, size, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
 
             free(column);
         }
     }
 
-    free_matrix(matrix_a, rows, columns);
-    free_matrix(matrix_b, rows, columns);
-
-    printf("End initialization!\n");
-
     return 0;
 }
 
 // Calculate part of matrix
-int worker(int rank, int process_count, int ***results_worker, int *rows_result)
+int worker(int ***matrix_part, int *part_size, int rank, int process_count)
 {
     int **rows, **columns;
     int code, count, size;
     MPI_Status status;
 
     get_message(0, 0, &size, 1);
-    *rows_result = size;
+    *part_size = size;
     count = size / process_count;
 
     code = create_matrix(&rows, count, size);
@@ -145,7 +111,7 @@ int worker(int rank, int process_count, int ***results_worker, int *rows_result)
         return code;
     }
 
-    code = create_matrix(results_worker, count, size);
+    code = create_matrix(matrix_part, count, size);
     if (code != 0)
     {
         return code;
@@ -177,7 +143,7 @@ int worker(int rank, int process_count, int ***results_worker, int *rows_result)
                 int offset = get_offset(process_count, iterate_num, rank);
                 int element_column_num = column + offset * count;
                 int element_row_num = row;
-                (*results_worker)[element_row_num][element_column_num] = element;
+                (*matrix_part)[element_row_num][element_column_num] = element;
             }
         }
 
@@ -223,18 +189,16 @@ int worker(int rank, int process_count, int ***results_worker, int *rows_result)
 }
 
 // Merge workers results to result_matrix in master
-int merge(int rank, int **result_worker, int rows, int count)
+int merge(int ***matrix_c, int **matrix_part, int rank, int rows, int process_count)
 {
     int code = 0;
-    int **result_matrix;
-    int size = rows * rows;
 
     // Send result from workers
     if (rank != 0)
     {
-        for (int j = 0; j < rows / count; j++)
+        for (int j = 0; j < rows / process_count; j++)
         {
-            MPI_Send(result_worker[j], rows, MPI_INT, 0, 2, MPI_COMM_WORLD);
+            MPI_Send(matrix_part[j], rows, MPI_INT, 0, 2, MPI_COMM_WORLD);
         }
     }
 
@@ -242,35 +206,29 @@ int merge(int rank, int **result_worker, int rows, int count)
     if (rank == 0)
     {
         // Alocate memory for result matrix
-        code = create_matrix(&result_matrix, rows, rows);
+        code = create_matrix(matrix_c, rows, rows);
         if (code != 0)
         {
             return code;
         }
 
         // Collect result from workers and put it into workers
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < process_count; i++)
         {
-            for (int j = 0; j < rows / count; j++)
+            for (int j = 0; j < rows / process_count; j++)
             {
-                get_message(i + 1, 2, result_matrix[(i * rows / count) + j], rows);
+                get_message(i + 1, 2, (*matrix_c)[(i * rows / process_count) + j], rows);
             }
         }
-
-        printf("Complite!!!\n");
-        printf("Write to file!!!\n");
-
-        // Write result mastrix into file
-        code = write_matrix(result_matrix, RESULT_MATRIX_PATH, rows, rows);
-        free_matrix(result_matrix, rows, rows);
     }
 }
 
 int main(int argc, char **argv)
 {
+    int **matrix_a, **matrix_b, **matrix_c;
+    int **matrix_part;
+    int matrix_size, code;
     int process_rank, process_count, workers_count;
-    int **result;
-    int rows;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &process_count);
@@ -280,14 +238,35 @@ int main(int argc, char **argv)
 
     if (process_rank == 0)
     {
-        master(workers_count, &rows);
+        printf("Start Load data!\n");
+        code = load_data(&matrix_a, &matrix_b, &matrix_size);
+        if (code != 0)
+        {
+            printf("Error load data!\n");
+            return code;
+        }
+        printf("End Load data!\n");
+
+        master(matrix_a, matrix_b, workers_count, matrix_size);
+
+        free_matrix(matrix_a, matrix_size, matrix_size);
+        free_matrix(matrix_b, matrix_size, matrix_size);
+        printf("End send to workers loop!\n");
     }
     else
     {
-        worker(process_rank, workers_count, &result, &rows);
+        worker(&matrix_part, &matrix_size, process_rank, workers_count);
     }
 
-    merge(process_rank, result, rows, workers_count);
+    merge(&matrix_c, matrix_part, process_rank, matrix_size, workers_count);
+
+    if (process_rank == 0)
+    {
+        printf("Matrix multiply END!!!!!!!!!\n");
+        printf("Write result to file\n");
+        code = write_matrix(matrix_c, RESULT_MATRIX_PATH, matrix_size, matrix_size);
+        free_matrix(matrix_c, matrix_size, matrix_size);
+    }
 
     MPI_Finalize();
 

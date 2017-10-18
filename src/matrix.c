@@ -9,6 +9,11 @@
 
 #define ERROR_OPEN_FILE 1
 #define ERROR_ALLOCATE_MEMORY 2
+#define ERROR_MATRIX_SIZE 2
+
+#define MATRIX_A_PATH "data/A.csv"
+#define MATRIX_B_PATH "data/B.csv"
+#define RESULT_MATRIX_PATH "data/C.csv"
 
 void free_matrix(int **matrix, int rows, int columns)
 {
@@ -147,6 +152,51 @@ int matrix_size(char *fname, int *rows, int *columns)
 
     *rows = rows_counter;
     *columns = columns_counter;
+
+    return 0;
+}
+
+// Load data
+int load_data(int ***matrix_a, int ***matrix_b, int *size)
+{
+    int code = 0;
+    int rows_a, rows_b, columns_a, columns_b;
+
+    // Get matrix A size from file
+    code = matrix_size(MATRIX_A_PATH, &rows_a, &columns_a);
+    if (code != 0)
+    {
+        return code;
+    }
+
+    // Get matrix b size from file
+    code = matrix_size(MATRIX_B_PATH, &rows_b, &columns_b);
+    if (code != 0)
+    {
+        return code;
+    }
+
+    if (rows_a != columns_a || rows_a != columns_b || rows_b != columns_a)
+    {
+        return ERROR_MATRIX_SIZE;
+    }
+
+    // Read matrix A from file
+    code = read_matrix(matrix_a, MATRIX_A_PATH, rows_a, columns_a);
+    if (code != 0)
+    {
+        return code;
+    }
+
+    // Read matrix B from file
+    code = read_matrix(matrix_b, MATRIX_B_PATH, rows_b, columns_b);
+    if (code != 0)
+    {
+        free_matrix(*matrix_a, rows_a, columns_a);
+        return code;
+    }
+
+    *size = rows_a;
 
     return 0;
 }
