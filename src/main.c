@@ -8,7 +8,8 @@
 #include "mpi.h"
 #include "matrix.c"
 
-#define TESTS_COUNT 4
+#define TEST_MAX_SIZE 1000000
+#define TEST_STEP 1000
 
 // Get message from process
 int get_message(int source, int tag, int *buf, int len)
@@ -292,7 +293,7 @@ int run(int count_generate)
         printf("Write result to file\n");
         printf("-------------End test %d matrix size--------------\n", count_generate);
 
-#ifndef TESTS_COUNT
+#ifndef TEST_MAX_SIZE
         code = write_matrix(matrix_c, RESULT_MATRIX_PATH, matrix_size, matrix_size);
 #endif
         free_matrix(matrix_c, matrix_size, matrix_size);
@@ -306,11 +307,10 @@ int main(int argc, char **argv)
     int code = 0;
     MPI_Init(&argc, &argv);
 
-#ifdef TESTS_COUNT
-    int tests[TESTS_COUNT] = {1000, 10000, 100000, 1000000};
-    for (int i = 0; i < TESTS_COUNT; i++)
+#ifdef TEST_MAX_SIZE
+    for (int size = 1000; size < TEST_MAX_SIZE; size += TEST_STEP)
     {
-        code = run(tests[i]);
+        code = run(size);
     }
 #else
     run(0);
