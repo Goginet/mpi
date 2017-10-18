@@ -5,8 +5,10 @@ version: "3.3"
 services:
   master:
     image: goginet/openmpi
-    ports: 
+    ports:
       - "22"
+    volumes:
+      - /tmp/data:/root/data
     networks:
       net:
         ipv4_address: 10.5.0.100

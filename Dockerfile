@@ -12,7 +12,6 @@ ADD configs configs
 ADD src src
 ADD ssh .ssh
 ADD scripts scripts
-ADD data data
 
 RUN apt update -y && \
     apt install -y apt-utils vim iputils-ping openssh-server build-essential mpich && \
@@ -23,5 +22,7 @@ RUN apt update -y && \
     mpicc ${SRC_FILE} -o ${BIN_FILE} && \
     chmod +x scripts/* && \
     cp scripts/run.sh /usr/bin/run
+
+VOLUME /data
 
 CMD ["/usr/sbin/sshd", "-D"]
